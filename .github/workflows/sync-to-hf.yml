@@ -10,17 +10,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Push to HF Space (orphan — no history, avoids binary file rejection)
+      - name: Push to HF Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           git config user.email "ci@github.com"
           git config user.name "GitHub Actions"
+
+          # Use Dockerfile.spaces as the Dockerfile for HF
           cp Dockerfile.spaces Dockerfile
-          git add -A
-          git commit -m "deploy: sync from GitHub" || echo "Nothing to commit"
+
+          # Remove binary files that HF rejects
+          find . -name "*.pdf" -delete
+          find . -name "*.png" -delete
+          find . -name "*.jpg" -delete
+          find . -name "*.jpeg" -delete
+          find . -name ".DS_Store" -delete
+
+          # Create orphan branch (no history = no old binary files)
           git checkout --orphan hf-deploy
           git add -A
           git commit -m "deploy: sync from GitHub"
+
+          # Push with retry
           git remote add hf https://joyceeparagas:$HF_TOKEN@huggingface.co/spaces/joyceeparagas/finDocIQ
-          git push hf hf-deploy:main --force
+          for i in 1 2 3 4 5; do
+            echo "Push attempt $i..."
+            git push hf hf-deploy:main --force && break || (echo "Retrying in 20s..." && sleep 20)
+          done
