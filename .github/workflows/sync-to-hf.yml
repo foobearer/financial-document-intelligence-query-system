@@ -9,13 +9,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: true
 
-      - name: Push to HF Space
+      - name: Push to HF Space (orphan — no history, avoids binary file rejection)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          git config user.email "ci@github.com"
+          git config user.name "GitHub Actions"
+          cp Dockerfile.spaces Dockerfile
+          git add -A
+          git commit -m "deploy: sync from GitHub" || echo "Nothing to commit"
+          git checkout --orphan hf-deploy
+          git add -A
+          git commit -m "deploy: sync from GitHub"
           git remote add hf https://joyceeparagas:$HF_TOKEN@huggingface.co/spaces/joyceeparagas/finDocIQ
-          git push hf main --force
+          git push hf hf-deploy:main --force
