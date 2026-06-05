@@ -10,11 +10,14 @@ without a separate nginx proxy.
 """
 
 import json
+import asyncio
 import dataclasses
+from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException
+from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+import httpx
 
 from src.api.schemas import (
     UploadResponse, QueryRequest, QueryResponse,
@@ -66,6 +69,67 @@ def _load_docs() -> dict:
 _documents: dict = _load_docs()
 
 
+# ── Slack notification ────────────────────────────────────────────────────────
+
+def _parse_user_agent(ua: str) -> str:
+    browser = "Unknown browser"
+    os_name = "Unknown OS"
+    if "Chrome" in ua and "Edg" not in ua:
+        browser = "Chrome"
+    elif "Firefox" in ua:
+        browser = "Firefox"
+    elif "Safari" in ua and "Chrome" not in ua:
+        browser = "Safari"
+    elif "Edg" in ua:
+        browser = "Edge"
+    if "Windows" in ua:
+        os_name = "Windows"
+    elif "Macintosh" in ua or "Mac OS" in ua:
+        os_name = "macOS"
+    elif "Linux" in ua:
+        os_name = "Linux"
+    elif "iPhone" in ua or "iPad" in ua:
+        os_name = "iOS"
+    elif "Android" in ua:
+        os_name = "Android"
+    return f"{browser} on {os_name}"
+
+
+async def _notify_slack(doc, client_ip: str, user_agent: str) -> None:
+    if not settings.slack_webhook_url:
+        return
+    try:
+        location = "Unknown"
+        async with httpx.AsyncClient(timeout=5) as client:
+            geo = await client.get(f"http://ip-api.com/json/{client_ip}?fields=city,regionName,country,status")
+            if geo.status_code == 200:
+                data = geo.json()
+                if data.get("status") == "success":
+                    location = f"{data.get('city', '')}, {data.get('regionName', '')}, {data.get('country', '')}"
+
+        device = _parse_user_agent(user_agent)
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+        payload = {
+            "text": (
+                f"📄 *New document uploaded on FinDocIQ*\n"
+                f"{'─' * 35}\n"
+                f"*File:* {doc.filename}\n"
+                f"*Type:* {doc.doc_type or 'Unknown'}\n"
+                f"*Company:* {doc.company_name or 'Unknown'}\n"
+                f"*Pages:* {doc.page_count}  |  *Chunks:* {doc.chunk_count}\n\n"
+                f"🌍 *Location:* {location}\n"
+                f"🖥  *Device:* {device}\n"
+                f"🕐 *Time:* {timestamp}"
+            )
+        }
+
+        async with httpx.AsyncClient(timeout=5) as client:
+            await client.post(settings.slack_webhook_url, json=payload)
+    except Exception:
+        pass
+
+
 # ── App setup ─────────────────────────────────────────────────────────────────
 
 app = FastAPI(
@@ -99,7 +163,7 @@ async def health():
 
 
 @router.post("/documents/upload", response_model=UploadResponse, tags=["Documents"])
-async def upload_document(file: UploadFile = File(..., description="PDF financial document")):
+async def upload_document(request: Request, file: UploadFile = File(..., description="PDF financial document")):
     """
     Upload and process a financial document.
     Extracts text, creates embeddings, runs intelligence extraction.
@@ -123,6 +187,10 @@ async def upload_document(file: UploadFile = File(..., description="PDF financia
         doc = process_document(tmp_path, run_intelligence=True)
         _documents[doc.document_id] = doc
         _save_doc(doc)  # persist to disk so server restarts don't lose it
+
+        client_ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
+        user_agent = request.headers.get("user-agent", "")
+        asyncio.create_task(_notify_slack(doc, client_ip, user_agent))
 
         return UploadResponse(
             document_id=doc.document_id,

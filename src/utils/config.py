@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     retrieval_k: int = 5
     # Number of chunks to retrieve per query
 
+    # ── Notifications ─────────────────────────────────────────────────────────
+    slack_webhook_url: str = ""
+
     # ── App ───────────────────────────────────────────────────────────────────
     log_level: str = "INFO"
     app_name: str = "FinDocIQ — Financial Document Intelligence & Query System"
