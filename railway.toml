@@ -2,7 +2,7 @@
 dockerfile = "Dockerfile"
 
 [deploy]
-startCommand = "streamlit run streamlit_app/app.py --server.port $PORT --server.address 0.0.0.0"
-healthcheckPath = "/_stcore/health"
+startCommand = "uvicorn src.api.main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/api/health"
 healthcheckTimeout = 30
 restartPolicyType = "on-failure"

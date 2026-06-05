@@ -1,40 +1,55 @@
-import { useState } from 'react'
-import Header from './components/Header'
+import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
-import UploadTab from './components/tabs/UploadTab'
-import QATab from './components/tabs/QATab'
-import MetricsTab from './components/tabs/MetricsTab'
-import RisksTab from './components/tabs/RisksTab'
+import TopBar  from './components/TopBar'
+import HomeTab      from './components/tabs/HomeTab'
+import UploadTab    from './components/tabs/UploadTab'
+import QATab        from './components/tabs/QATab'
+import MetricsTab   from './components/tabs/MetricsTab'
+import RisksTab     from './components/tabs/RisksTab'
 import SentimentTab from './components/tabs/SentimentTab'
-import CompareTab from './components/tabs/CompareTab'
+import CompareTab   from './components/tabs/CompareTab'
 import type { ChatMessage, UploadedDocument } from './types'
 
-type Tab = 'upload' | 'qa' | 'metrics' | 'risks' | 'sentiment' | 'compare'
+export type Tab = 'home' | 'upload' | 'qa' | 'metrics' | 'risks' | 'sentiment' | 'compare'
 
-const BASE_TABS: { id: Tab; label: string }[] = [
-  { id: 'upload',    label: '📤 Upload' },
-  { id: 'qa',       label: '💬 Q&A' },
-  { id: 'metrics',  label: '📊 Metrics' },
-  { id: 'risks',    label: '⚠ Risks' },
-  { id: 'sentiment', label: '📈 Sentiment' },
-]
+const SESSION_DOCS_KEY    = 'findociq:documents'
+const SESSION_DOCID_KEY   = 'findociq:activeDocId'
+
+function readSession<T>(key: string, fallback: T): T {
+  try {
+    const raw = sessionStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : fallback
+  } catch {
+    return fallback
+  }
+}
 
 export default function App() {
-  const [documents, setDocuments] = useState<Record<string, UploadedDocument>>({})
-  const [activeDocId, setActiveDocId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('upload')
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
+  const [documents,       setDocuments]       = useState<Record<string, UploadedDocument>>(
+    () => readSession(SESSION_DOCS_KEY, {}),
+  )
+  const [activeDocId,     setActiveDocId]     = useState<string | null>(
+    () => readSession(SESSION_DOCID_KEY, null),
+  )
+  const [activeTab,       setActiveTab]       = useState<Tab>('home')
+  const [chatHistory,     setChatHistory]     = useState<ChatMessage[]>([])
   const [prefillQuestion, setPrefillQuestion] = useState('')
 
-  const docCount = Object.keys(documents).length
-  const tabs = docCount >= 2
-    ? [...BASE_TABS, { id: 'compare' as Tab, label: '🔄 Compare' }]
-    : BASE_TABS
+  // Keep sessionStorage in sync — survives refresh, cleared on tab close
+  useEffect(() => {
+    sessionStorage.setItem(SESSION_DOCS_KEY, JSON.stringify(documents))
+  }, [documents])
 
+  useEffect(() => {
+    if (activeDocId) sessionStorage.setItem(SESSION_DOCID_KEY, activeDocId)
+    else             sessionStorage.removeItem(SESSION_DOCID_KEY)
+  }, [activeDocId])
+
+  const docList  = Object.values(documents)
   const activeDoc = activeDocId ? documents[activeDocId] : null
 
   function handleUpload(doc: UploadedDocument) {
-    setDocuments((prev) => ({ ...prev, [doc.document_id]: doc }))
+    setDocuments(prev => ({ ...prev, [doc.document_id]: doc }))
     setActiveDocId(doc.document_id)
     setChatHistory([])
     setActiveTab('qa')
@@ -51,78 +66,103 @@ export default function App() {
   }
 
   function handleChatMessage(user: string, assistant: string) {
-    setChatHistory((prev) => [
+    setChatHistory(prev => [
       ...prev,
-      { role: 'user', content: user },
+      { role: 'user',      content: user },
       { role: 'assistant', content: assistant },
     ])
   }
 
+  const needsDoc = ['qa', 'metrics', 'risks', 'sentiment'].includes(activeTab) && !activeDoc
+
   return (
-    <div className="min-h-screen bg-bg-primary text-text-primary flex flex-col">
-      <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-6 py-8 gap-6">
-        <Header />
+    <div className="h-screen flex overflow-hidden bg-app-bg">
 
-        <div className="flex gap-8 flex-1 min-h-0">
-          <Sidebar
-            documents={documents}
-            activeDocId={activeDocId}
-            onSelectDoc={handleSelectDoc}
-            onSampleQuestion={handleSampleQuestion}
-          />
+      {/* ── Sidebar ─────────────────────────────────────── */}
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        documents={documents}
+        activeDocId={activeDocId}
+        onSelectDoc={handleSelectDoc}
+        onSampleQuestion={handleSampleQuestion}
+      />
 
-          <main className="flex-1 flex flex-col gap-4 min-w-0">
-            {/* Tab nav */}
-            <nav className="flex gap-6 border-b border-border-dim">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`pb-3 text-sm font-mono transition-colors ${
-                    activeTab === tab.id ? 'tab-active' : 'tab-inactive'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
+      {/* ── Main area ───────────────────────────────────── */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-            {/* Tab content */}
-            <div className="flex-1 overflow-y-auto">
-              {activeTab === 'upload' && <UploadTab onUpload={handleUpload} />}
+        <TopBar
+          activeTab={activeTab}
+          documents={documents}
+          activeDocId={activeDocId}
+          onSelectDoc={handleSelectDoc}
+        />
 
-              {activeTab === 'qa' && !activeDoc && (
-                <p className="text-sm text-text-muted">Upload and select a document first.</p>
-              )}
-              {activeTab === 'qa' && activeDoc && (
-                <QATab
-                  document={activeDoc}
-                  chatHistory={chatHistory}
-                  onMessage={handleChatMessage}
-                  prefillQuestion={prefillQuestion}
-                  onClearPrefill={() => setPrefillQuestion('')}
-                />
-              )}
+        {/* Scrollable content */}
+        <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
 
-              {activeTab === 'metrics' && !activeDoc && (
-                <p className="text-sm text-text-muted">Upload and select a document first.</p>
-              )}
-              {activeTab === 'metrics' && activeDoc && <MetricsTab document={activeDoc} />}
-
-              {activeTab === 'risks' && !activeDoc && (
-                <p className="text-sm text-text-muted">Upload and select a document first.</p>
-              )}
-              {activeTab === 'risks' && activeDoc && <RisksTab document={activeDoc} />}
-
-              {activeTab === 'sentiment' && !activeDoc && (
-                <p className="text-sm text-text-muted">Upload and select a document first.</p>
-              )}
-              {activeTab === 'sentiment' && activeDoc && <SentimentTab document={activeDoc} />}
-
-              {activeTab === 'compare' && <CompareTab documents={documents} />}
+          {/* Guard: tab requires a doc but none selected */}
+          {needsDoc && (
+            <div className="card max-w-sm mx-auto mt-20 text-center p-8">
+              <div className="text-4xl mb-3">📂</div>
+              <p className="font-bold text-navy mb-1">No document selected</p>
+              <p className="text-sm text-navy/50 mb-5">Upload a document first to use this feature.</p>
+              <button className="btn-primary w-full" onClick={() => setActiveTab('upload')}>
+                Upload Document
+              </button>
             </div>
-          </main>
-        </div>
+          )}
+
+          {!needsDoc && activeTab === 'home' && (
+            <HomeTab
+              documents={documents}
+              onGoUpload={() => setActiveTab('upload')}
+              onGoQA={() => setActiveTab('qa')}
+            />
+          )}
+
+          {!needsDoc && activeTab === 'upload' && (
+            <UploadTab onUpload={handleUpload} />
+          )}
+
+          {!needsDoc && activeTab === 'qa' && activeDoc && (
+            <QATab
+              document={activeDoc}
+              chatHistory={chatHistory}
+              onMessage={handleChatMessage}
+              prefillQuestion={prefillQuestion}
+              onClearPrefill={() => setPrefillQuestion('')}
+            />
+          )}
+
+          {!needsDoc && activeTab === 'metrics' && activeDoc && (
+            <MetricsTab document={activeDoc} />
+          )}
+
+          {!needsDoc && activeTab === 'risks' && activeDoc && (
+            <RisksTab document={activeDoc} />
+          )}
+
+          {!needsDoc && activeTab === 'sentiment' && activeDoc && (
+            <SentimentTab document={activeDoc} />
+          )}
+
+          {activeTab === 'compare' && (
+            docList.length < 2
+              ? (
+                <div className="card max-w-sm mx-auto mt-20 text-center p-8">
+                  <div className="text-4xl mb-3">🔄</div>
+                  <p className="font-bold text-navy mb-1">Upload two documents to compare</p>
+                  <p className="text-sm text-navy/50 mb-5">Side-by-side analysis of any two financial filings.</p>
+                  <button className="btn-primary w-full" onClick={() => setActiveTab('upload')}>
+                    Upload Documents
+                  </button>
+                </div>
+              )
+              : <CompareTab documents={documents} />
+          )}
+
+        </main>
       </div>
     </div>
   )
