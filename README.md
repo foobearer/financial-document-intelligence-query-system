@@ -18,7 +18,7 @@ pinned: false
 
 ---
 
-## What This Is and Why It Matters
+## What is FinDocIQ?
 
 Financial professionals spend hours manually reading SEC filings, earnings transcripts,
 and analyst reports to extract key numbers, identify risks, and compare performance
@@ -54,6 +54,17 @@ FinDocIQ does all four in under 60 seconds.
 | Compare two documents (Q1 vs Q2) | ❌ | ✅ |
 | Return structured JSON for downstream use | ❌ | ✅ |
 | Production REST API | ❌ | ✅ |
+
+---
+
+## How to Use the App
+
+- **Upload a document** — go to the Upload tab and drop any SEC filing or earnings transcript PDF (10-K, 10-Q, 8-K, earnings call). The app processes it automatically.
+- **Ask questions** — switch to the Ask AI tab and type any question about the document. The RAG engine retrieves the most relevant sections and answers using GPT-4o.
+- **View extracted metrics** — the Metrics tab shows structured financial data pulled from the document: revenue, net income, EPS, gross margin, and more.
+- **Review risk factors** — the Risk Analysis tab lists identified risk factors scored by severity and likelihood, grouped by category.
+- **Read sentiment analysis** — the Sentiment tab breaks down the tone of each document section — bullish, cautious, neutral, or bearish — with a confidence score.
+- **Compare two documents** — upload a second document and go to the Compare tab to run a side-by-side analysis across revenue, profitability, risk, and sentiment shifts.
 
 ---
 
