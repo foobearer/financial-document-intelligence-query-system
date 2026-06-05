@@ -1,3 +1,12 @@
+---
+title: FinDocIQ
+emoji: 📊
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
+
 # FinDocIQ — Financial Document Intelligence & Query System
 
 > **Portfolio Project** by [Joycee Catamora Paragas](https://joycee.dev)  
