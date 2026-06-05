@@ -10,11 +10,10 @@ without a separate nginx proxy.
 """
 
 import json
-import asyncio
 import dataclasses
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, Request
+from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import httpx
@@ -98,18 +97,21 @@ def _parse_user_agent(ua: str) -> str:
 async def _notify_slack(doc, client_ip: str, user_agent: str) -> None:
     if not settings.slack_webhook_url:
         return
+
+    location = "Unknown"
     try:
-        location = "Unknown"
-        async with httpx.AsyncClient(timeout=5) as client:
+        async with httpx.AsyncClient(timeout=3) as client:
             geo = await client.get(f"http://ip-api.com/json/{client_ip}?fields=city,regionName,country,status")
             if geo.status_code == 200:
                 data = geo.json()
                 if data.get("status") == "success":
                     location = f"{data.get('city', '')}, {data.get('regionName', '')}, {data.get('country', '')}"
+    except Exception:
+        pass
 
+    try:
         device = _parse_user_agent(user_agent)
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-
         payload = {
             "text": (
                 f"📄 *New document uploaded on FinDocIQ*\n"
@@ -123,7 +125,6 @@ async def _notify_slack(doc, client_ip: str, user_agent: str) -> None:
                 f"🕐 *Time:* {timestamp}"
             )
         }
-
         async with httpx.AsyncClient(timeout=5) as client:
             await client.post(settings.slack_webhook_url, json=payload)
     except Exception:
@@ -163,7 +164,7 @@ async def health():
 
 
 @router.post("/documents/upload", response_model=UploadResponse, tags=["Documents"])
-async def upload_document(request: Request, file: UploadFile = File(..., description="PDF financial document")):
+async def upload_document(request: Request, background_tasks: BackgroundTasks, file: UploadFile = File(..., description="PDF financial document")):
     """
     Upload and process a financial document.
     Extracts text, creates embeddings, runs intelligence extraction.
@@ -190,7 +191,7 @@ async def upload_document(request: Request, file: UploadFile = File(..., descrip
 
         client_ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
         user_agent = request.headers.get("user-agent", "")
-        asyncio.create_task(_notify_slack(doc, client_ip, user_agent))
+        background_tasks.add_task(_notify_slack, doc, client_ip, user_agent)
 
         return UploadResponse(
             document_id=doc.document_id,
