@@ -1,5 +1,4 @@
-import type { Tab } from '../App'
-import type { UploadedDocument } from '../types'
+import type { Tab, UploadedDocument } from '../types'
 
 const PAGE_META: Record<Tab, { label: string; emoji: string; desc: string }> = {
   home:      { label: 'Overview',       emoji: '🏠', desc: 'Your financial intelligence dashboard' },

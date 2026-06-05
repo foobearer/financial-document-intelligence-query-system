@@ -1,3 +1,5 @@
+export type Tab = 'home' | 'upload' | 'qa' | 'metrics' | 'risks' | 'sentiment' | 'compare'
+
 export interface UploadedDocument {
   document_id: string
   filename: string
