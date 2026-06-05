@@ -3,12 +3,18 @@ src/api/main.py — FinDocIQ FastAPI Production API
 ───────────────────────────────────────────────────
 Run:  uvicorn src.api.main:app --reload
 Docs: http://localhost:8000/docs
+
+All API routes are mounted under /api/* so the React frontend
+can be served from the same origin in production (HF Spaces, etc.)
+without a separate nginx proxy.
 """
 
-import shutil
+import json
+import dataclasses
 from pathlib import Path
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from src.api.schemas import (
     UploadResponse, QueryRequest, QueryResponse,
@@ -18,6 +24,49 @@ from src.utils.config import settings
 from src.utils.logger import get_logger
 
 log = get_logger(__name__)
+
+# Directory where each document's data is persisted as a JSON file
+_DOC_STORE_DIR = Path("data/documents")
+_DOC_STORE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ── Persistence helpers ───────────────────────────────────────────────────────
+
+def _doc_path(document_id: str) -> Path:
+    return _DOC_STORE_DIR / f"{document_id}.json"
+
+
+def _save_doc(doc) -> None:
+    """Persist a ProcessedDocument to disk as JSON."""
+    try:
+        _doc_path(doc.document_id).write_text(
+            json.dumps(dataclasses.asdict(doc), ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except Exception as e:
+        log.warning("doc_store.save_failed", doc_id=doc.document_id, error=str(e))
+
+
+def _load_docs() -> dict:
+    """Load all persisted documents from disk into memory on startup."""
+    from src.ingestion.document_processor import ProcessedDocument
+    store = {}
+    for path in _DOC_STORE_DIR.glob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            store[data["document_id"]] = ProcessedDocument(**data)
+        except Exception as e:
+            log.warning("doc_store.load_failed", path=str(path), error=str(e))
+    if store:
+        log.info("doc_store.loaded", count=len(store))
+    return store
+
+
+# In-memory store, pre-populated from disk on every startup
+_documents: dict = _load_docs()
+
+
+# ── App setup ─────────────────────────────────────────────────────────────────
 
 app = FastAPI(
     title=settings.app_name,
@@ -37,17 +86,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory document store for this session
-# In production, replace with a database
-_documents: dict[str, object] = {}
+# All API routes live under /api so they coexist with the React frontend
+# on the same origin without a reverse proxy.
+router = APIRouter(prefix="/api")
 
 
-@app.get("/health", response_model=HealthResponse, tags=["System"])
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.get("/health", response_model=HealthResponse, tags=["System"])
 async def health():
     return HealthResponse(openai_configured=settings.openai_available)
 
 
-@app.post("/documents/upload", response_model=UploadResponse, tags=["Documents"])
+@router.post("/documents/upload", response_model=UploadResponse, tags=["Documents"])
 async def upload_document(file: UploadFile = File(..., description="PDF financial document")):
     """
     Upload and process a financial document.
@@ -57,15 +108,13 @@ async def upload_document(file: UploadFile = File(..., description="PDF financia
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
 
-    file_size = 0
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
     tmp_path = upload_dir / file.filename
 
     with open(tmp_path, "wb") as f:
         content = await file.read()
-        file_size = len(content)
-        if file_size > settings.max_file_size_bytes:
+        if len(content) > settings.max_file_size_bytes:
             raise HTTPException(status_code=413, detail=f"File too large. Max {settings.max_file_size_mb}MB.")
         f.write(content)
 
@@ -73,6 +122,7 @@ async def upload_document(file: UploadFile = File(..., description="PDF financia
         from src.ingestion.document_processor import process_document
         doc = process_document(tmp_path, run_intelligence=True)
         _documents[doc.document_id] = doc
+        _save_doc(doc)  # persist to disk so server restarts don't lose it
 
         return UploadResponse(
             document_id=doc.document_id,
@@ -90,7 +140,7 @@ async def upload_document(file: UploadFile = File(..., description="PDF financia
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/documents/query", response_model=QueryResponse, tags=["Intelligence"])
+@router.post("/documents/query", response_model=QueryResponse, tags=["Intelligence"])
 async def query_document(request: QueryRequest):
     """
     Ask a question about an uploaded document.
@@ -106,20 +156,20 @@ async def query_document(request: QueryRequest):
     return QueryResponse(**result)
 
 
-@app.get("/documents/{document_id}/metrics", tags=["Intelligence"])
+@router.get("/documents/{document_id}/metrics", tags=["Intelligence"])
 async def get_metrics(document_id: str):
     """Extract structured financial metrics (revenue, EPS, margins, ratios)."""
     doc = _documents.get(document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     if not doc.metrics:
-        # Run on-demand if not already extracted
         from src.intelligence.metric_extractor import extract_metrics
         doc.metrics = extract_metrics(doc.full_text)
+        _save_doc(doc)
     return {"document_id": document_id, "metrics": doc.metrics}
 
 
-@app.get("/documents/{document_id}/risks", tags=["Intelligence"])
+@router.get("/documents/{document_id}/risks", tags=["Intelligence"])
 async def get_risks(document_id: str):
     """Get scored and ranked risk factors from the document."""
     doc = _documents.get(document_id)
@@ -128,7 +178,7 @@ async def get_risks(document_id: str):
     return {"document_id": document_id, "risks": doc.risks, "total": len(doc.risks)}
 
 
-@app.get("/documents/{document_id}/sentiment", tags=["Intelligence"])
+@router.get("/documents/{document_id}/sentiment", tags=["Intelligence"])
 async def get_sentiment(document_id: str):
     """Get per-section sentiment analysis and overall document tone."""
     from src.intelligence.sentiment_analyser import get_overall_sentiment
@@ -137,13 +187,13 @@ async def get_sentiment(document_id: str):
         raise HTTPException(status_code=404, detail="Document not found.")
     overall = get_overall_sentiment(doc.sentiments)
     return {
-        "document_id":     document_id,
-        "overall":         overall,
-        "by_section":      doc.sentiments,
+        "document_id": document_id,
+        "overall":     overall,
+        "by_section":  doc.sentiments,
     }
 
 
-@app.post("/documents/compare", tags=["Intelligence"])
+@router.post("/documents/compare", tags=["Intelligence"])
 async def compare_documents(request: CompareRequest):
     """Compare two documents side by side — surfaces key changes."""
     doc1 = _documents.get(request.document_id_1)
@@ -162,3 +212,21 @@ async def compare_documents(request: CompareRequest):
         doc2_label=request.label_2 or doc2.filename,
     )
     return result
+
+
+app.include_router(router)
+
+
+# ── React frontend (production) ───────────────────────────────────────────────
+# Serves the built React app when frontend/dist exists (i.e. in production /
+# HF Spaces). In local Docker dev the frontend container handles this instead.
+
+_DIST = Path("frontend/dist")
+
+if _DIST.exists():
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_frontend(full_path: str):
+        file = _DIST / full_path
+        if file.exists() and file.is_file():
+            return FileResponse(file)
+        return FileResponse(_DIST / "index.html")
