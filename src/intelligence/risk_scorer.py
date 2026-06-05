@@ -40,14 +40,13 @@ def score_risks(risk_section_text: str) -> list[dict]:
             messages=[
                 {"role": "user", "content": risk_extraction_prompt(risk_section_text)}
             ],
-            max_tokens=2000,
+            max_tokens=4000,
             temperature=0,
         )
 
-        # The prompt asks for an array, wrapped in a JSON object
         raw = json.loads(response.choices[0].message.content)
-        # Handle both {"risks": [...]} and direct array
-        risks = raw if isinstance(raw, list) else raw.get("risks", raw.get("risk_factors", []))
+        # Prompt now always returns {"risks": [...]}, handle legacy formats too
+        risks = raw.get("risks", raw.get("risk_factors", raw if isinstance(raw, list) else []))
 
         # Add severity labels and sort
         for risk in risks:

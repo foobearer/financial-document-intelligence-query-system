@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 src/intelligence/rag_engine.py — RAG Chatbot
 ──────────────────────────────────────────────

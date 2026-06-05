@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 src/storage/vector_store.py — ChromaDB Vector Store
 ──────────────────────────────────────────────────────
