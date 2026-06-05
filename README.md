@@ -9,10 +9,12 @@ pinned: false
 
 # FinDocIQ — Financial Document Intelligence & Query System
 
-> **Portfolio Project** by [Joycee Catamora Paragas](https://joycee.dev)  
-> **Stack:** Python · LangChain · ChromaDB · OpenAI GPT-4o · FastAPI · React · Vite · Tailwind CSS
+**Portfolio Project** by [Joycee Catamora Paragas](https://joycee.dev)  
+**Stack:** Python · LangChain · ChromaDB · OpenAI GPT-4o · FastAPI · React · Vite · Tailwind CSS
 
----
+🚀 **[Try the live demo on Hugging Face Spaces](https://huggingface.co/spaces/joyceeparagas/finDocIQ)**
+
+![FinDocIQ App Banner](https://raw.githubusercontent.com/foobearer/financial-document-intelligence-query-system/main/docs/findocID-app-banner.png)
 
 ---
 
@@ -25,19 +27,6 @@ across periods. FinDocIQ automates all of that.
 This is not just a RAG chatbot with a finance skin. It is a **domain-specific
 intelligence system** that understands the structure of financial documents and
 produces structured, actionable output.
-
-### What it does that generic RAG chatbots don't
-
-| Capability | Generic RAG | FinDocIQ |
-|---|---|---|
-| Answer questions about documents | ✅ | ✅ |
-| Understand SEC filing structure | ❌ | ✅ |
-| Extract financial metrics (revenue, EPS, ratios) | ❌ | ✅ |
-| Score risk factors by severity | ❌ | ✅ |
-| Sentiment analysis per section | ❌ | ✅ |
-| Compare two documents (Q1 vs Q2) | ❌ | ✅ |
-| Return structured JSON for downstream use | ❌ | ✅ |
-| Production REST API | ❌ | ✅ |
 
 ---
 
@@ -52,6 +41,19 @@ They need to:
 4. Get a quick read on management tone — are they cautious or confident?
 
 FinDocIQ does all four in under 60 seconds.
+
+### What it does that generic RAG chatbots don't
+
+| Capability | Generic RAG | FinDocIQ |
+|---|---|---|
+| Answer questions about documents | ✅ | ✅ |
+| Understand SEC filing structure | ❌ | ✅ |
+| Extract financial metrics (revenue, EPS, ratios) | ❌ | ✅ |
+| Score risk factors by severity | ❌ | ✅ |
+| Sentiment analysis per section | ❌ | ✅ |
+| Compare two documents (Q1 vs Q2) | ❌ | ✅ |
+| Return structured JSON for downstream use | ❌ | ✅ |
+| Production REST API | ❌ | ✅ |
 
 ---
 
@@ -186,28 +188,6 @@ npm run dev
 ```bash
 pytest tests/ -v
 ```
-
----
-
-## Deploying to Hugging Face Spaces (Free)
-
-FinDocIQ ships with `Dockerfile.spaces` — a single-container build that compiles
-the React frontend and serves it via FastAPI on port 7860 (HF Spaces default).
-No nginx, no second container.
-
-### Steps
-
-1. Go to [huggingface.co/new-space](https://huggingface.co/new-space)
-2. Choose **Docker** as the SDK
-3. Link your GitHub repo (or push directly to the HF Space repo)
-4. Rename `Dockerfile.spaces` → `Dockerfile` in the Space repo
-5. In the Space **Settings → Repository secrets**, add:
-   ```
-   OPENAI_API_KEY=sk-...
-   ```
-6. HF Spaces builds and deploys automatically
-
-Your app will be live at `https://huggingface.co/spaces/your-username/findociq`.
 
 ---
 
