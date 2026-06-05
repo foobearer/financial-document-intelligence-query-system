@@ -4,6 +4,7 @@ langchain-openai==0.1.8        # LangChain OpenAI integration
 langchain-community==0.2.5     # Community integrations (ChromaDB, etc.)
 openai==1.30.1                 # OpenAI SDK — GPT-4o for extraction & Q&A
 chromadb==0.5.0                # Local vector store — no server needed
+sentence-transformers==3.0.1   # Embeddings for ChromaDB
 tiktoken==0.7.0                # Token counting for OpenAI models
 
 # ── Document Processing ────────────────────────────────────────────────────────
