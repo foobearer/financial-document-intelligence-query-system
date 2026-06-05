@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 src/ingestion/doc_classifier.py — Financial Document Type Detection
 ────────────────────────────────────────────────────────────────────

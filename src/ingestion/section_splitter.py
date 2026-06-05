@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 src/ingestion/section_splitter.py — Semantic Section Detection
 ───────────────────────────────────────────────────────────────

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 src/ingestion/document_processor.py — Full Ingestion Orchestrator
 ──────────────────────────────────────────────────────────────────
@@ -118,19 +120,24 @@ def process_document(file_path: Path, run_intelligence: bool = True) -> Processe
     if run_intelligence and settings.openai_available:
         log.info("pipeline.intelligence", doc_id=document_id)
 
-        # Extract financial metrics from financial statements section
-        fin_section = next(
-            (s for s in sections if s.section_type == "financials"), None
-        ) or (sections[0] if sections else None)
+        # Always pick the LARGEST section of each type to avoid table-of-contents
+        # entries (which match the same headers but contain only a few lines).
+        def largest(type_name: str):
+            candidates = [s for s in sections if s.section_type == type_name]
+            return max(candidates, key=lambda s: len(s.text)) if candidates else None
 
+        # Extract financial metrics — prefer financials, fall back to mda, then full text
+        fin_section = (
+            largest("financials")
+            or largest("mda")
+            or (sections[0] if sections else None)
+        )
         if fin_section:
             from src.intelligence.metric_extractor import extract_metrics
             result.metrics = extract_metrics(fin_section.text)
 
-        # Score risks from risk factors section
-        risk_section = next(
-            (s for s in sections if s.section_type == "risk_factors"), None
-        )
+        # Score risks — prefer risk_factors; if none found, use mda or full text
+        risk_section = largest("risk_factors") or largest("mda")
         if risk_section:
             from src.intelligence.risk_scorer import score_risks
             result.risks = score_risks(risk_section.text)
