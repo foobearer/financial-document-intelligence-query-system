@@ -5,8 +5,6 @@
 
 ---
 
-![FinDocIQ App](assets/app-thumbnail.png)
-
 ---
 
 ## What This Is and Why It Matters
