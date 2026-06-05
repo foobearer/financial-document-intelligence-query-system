@@ -12,6 +12,15 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
+
+      - name: Rename Dockerfile.spaces → Dockerfile for HF Spaces
+        run: |
+          cp Dockerfile.spaces Dockerfile
+          git config user.email "ci@github.com"
+          git config user.name "GitHub Actions"
+          git add Dockerfile
+          git commit -m "ci: rename Dockerfile.spaces to Dockerfile for HF Spaces" || echo "No changes to commit"
+
       - name: Push to HF Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
