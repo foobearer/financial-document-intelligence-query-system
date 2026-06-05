@@ -1,11 +1,28 @@
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
+*.pyo
 venv/
 .venv/
+
+# ── Environment ───────────────────────────────────────────────────────────────
 .env
 !.env.example
+
+# ── Data — user-generated, not for repo ──────────────────────────────────────
 data/uploads/
 data/chroma/
 data/metadata.db
 data/*.db
+data/documents/
+
+# ── Sample docs — real company data must not be committed ────────────────────
+data/sample_docs/real-sample/
+
+# ── Frontend build artefacts ──────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
 *.DS_Store
+.DS_Store

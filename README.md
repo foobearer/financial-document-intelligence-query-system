@@ -1,7 +1,7 @@
 # FinDocIQ — Financial Document Intelligence & Query System
 
 > **Portfolio Project** by [Joycee Catamora Paragas](https://joycee.dev)  
-> **Stack:** Python · LangChain · ChromaDB · OpenAI · FastAPI · Streamlit
+> **Stack:** Python · LangChain · ChromaDB · OpenAI GPT-4o · FastAPI · React · Vite · Tailwind CSS
 
 ---
 
@@ -48,161 +48,203 @@ FinDocIQ does all four in under 60 seconds.
 
 ---
 
+## Architecture
+
+```
+┌─────────────────────────────────┐
+│   React + Vite Frontend (UI)    │  ← The real interface
+│   frontend/                     │
+└────────────┬────────────────────┘
+             │ /api/*
+┌────────────▼────────────────────┐
+│   FastAPI Backend               │  ← REST API + serves React in production
+│   src/api/main.py               │
+└────────────┬────────────────────┘
+             │
+┌────────────▼────────────────────┐
+│   Intelligence Layer            │
+│   src/intelligence/             │
+│   LangChain · ChromaDB · GPT-4o │
+└─────────────────────────────────┘
+```
+
+---
+
 ## Project Structure
 
 ```
 findociq/
 │
-├── README.md                        ← You are here
-├── requirements.txt                 ← All dependencies pinned
-├── .env.example                     ← API key configuration
-├── Makefile                         ← One-command shortcuts
-├── docker-compose.yml
+├── README.md
+├── requirements.txt             ← Python dependencies
+├── .env.example                 ← API key configuration
+├── Makefile
+├── docker-compose.yml           ← Local dev (frontend + api as separate containers)
+├── Dockerfile                   ← Python API image (used by docker-compose)
+├── Dockerfile.spaces            ← Single-container build for Hugging Face Spaces
+│
+├── frontend/                    ← React + Vite + Tailwind UI
+│   ├── src/
+│   │   ├── App.tsx
+│   │   ├── api/client.ts        ← All API calls to /api/*
+│   │   ├── components/
+│   │   └── types/
+│   ├── Dockerfile               ← nginx image for local dev only
+│   └── package.json
 │
 ├── src/
 │   ├── ingestion/
-│   │   ├── __init__.py
-│   │   ├── pdf_parser.py            ← Extract text + tables from PDFs
-│   │   ├── doc_classifier.py        ← Detect: 10-K, 10-Q, 8-K, transcript, report
-│   │   └── section_splitter.py      ← Split filing into semantic sections
+│   │   ├── pdf_parser.py        ← Extract text + tables from PDFs
+│   │   ├── doc_classifier.py    ← Detect: 10-K, 10-Q, 8-K, transcript, report
+│   │   └── section_splitter.py  ← Split filing into semantic sections
 │   │
 │   ├── intelligence/
-│   │   ├── __init__.py
-│   │   ├── rag_engine.py            ← RAG chatbot (ChromaDB + LangChain)
-│   │   ├── metric_extractor.py      ← Extract revenue, EPS, ratios, guidance
-│   │   ├── risk_scorer.py           ← Identify + score risk factors
-│   │   ├── sentiment_analyser.py    ← Per-section financial sentiment
-│   │   └── comparator.py            ← Cross-document / cross-period comparison
+│   │   ├── rag_engine.py        ← RAG chatbot (ChromaDB + LangChain)
+│   │   ├── metric_extractor.py  ← Extract revenue, EPS, ratios, guidance
+│   │   ├── risk_scorer.py       ← Identify + score risk factors
+│   │   ├── sentiment_analyser.py
+│   │   └── comparator.py        ← Cross-document / cross-period comparison
 │   │
 │   ├── storage/
-│   │   ├── __init__.py
-│   │   ├── vector_store.py          ← ChromaDB vector store management
-│   │   └── metadata_store.py        ← SQLite for document metadata
+│   │   ├── vector_store.py      ← ChromaDB vector store management
+│   │   └── metadata_store.py    ← SQLite for document metadata
 │   │
 │   ├── api/
-│   │   ├── __init__.py
-│   │   ├── main.py                  ← FastAPI app
-│   │   └── schemas.py               ← Pydantic request/response models
+│   │   ├── main.py              ← FastAPI app (all routes under /api/*)
+│   │   └── schemas.py           ← Pydantic request/response models
 │   │
 │   └── utils/
-│       ├── __init__.py
-│       ├── prompts.py               ← All LLM prompts in one place
+│       ├── prompts.py           ← All LLM prompts in one place
 │       └── logger.py
 │
-├── streamlit_app/
-│   └── app.py                       ← Interactive Streamlit demo
-│
-├── tests/
-│   ├── test_ingestion.py
-│   ├── test_intelligence.py
-│   └── test_api.py
-│
-└── data/
-    └── sample_docs/                 ← Sample PDFs for testing
-        └── README.md
+└── tests/
+    ├── test_ingestion.py
+    ├── test_intelligence.py
+    └── test_api.py
 ```
 
 ---
 
-## Quick Start
+## Quick Start (Local Dev)
 
 ### Prerequisites
 - Python 3.10+
-- OpenAI API key (get one at https://platform.openai.com/api-keys)
-- ~500MB disk space for ChromaDB and model cache
+- Node.js 20+
+- Docker + Docker Compose
+- OpenAI API key — **required** · [get one here](https://platform.openai.com/api-keys)
 
 ### Step 1 — Setup
 
 ```bash
 git clone https://github.com/foobearer/findociq.git
 cd findociq
-python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
 cp .env.example .env
 # Edit .env — add your OPENAI_API_KEY
 ```
 
-### Step 2 — Run the Streamlit demo (easiest)
+### Step 2 — Run with Docker (recommended)
 
 ```bash
-streamlit run streamlit_app/app.py
-# Opens at http://localhost:8501
+docker-compose up
 ```
 
-Upload any SEC filing PDF and start analysing.
+This starts two containers:
 
-### Step 3 — Run the FastAPI production API
+| Container | URL | What it is |
+|-----------|-----|------------|
+| `frontend-1` | http://localhost:8080 | React UI (nginx) |
+| `api-1` | http://localhost:8000 | FastAPI backend |
+
+Open **http://localhost:8080** to use the app. The React frontend proxies `/api/*`
+calls to the FastAPI container automatically.
+
+### Step 3 — Run without Docker
 
 ```bash
+# Terminal 1 — Python API
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
 uvicorn src.api.main:app --reload
-# API at http://localhost:8000
-# Docs at http://localhost:8000/docs
+# API at http://localhost:8000/api/docs
+
+# Terminal 2 — React frontend
+cd frontend
+npm install
+npm run dev
+# UI at http://localhost:3000
 ```
 
-### Step 4 — Run tests
+### Run tests
 
 ```bash
 pytest tests/ -v
 ```
 
-### Docker (everything at once)
+---
 
-```bash
-cp .env.example .env   # add your API key
-docker-compose up
-# Streamlit: http://localhost:8501
-# FastAPI:   http://localhost:8000
-```
+## Deploying to Hugging Face Spaces (Free)
+
+FinDocIQ ships with `Dockerfile.spaces` — a single-container build that compiles
+the React frontend and serves it via FastAPI on port 7860 (HF Spaces default).
+No nginx, no second container.
+
+### Steps
+
+1. Go to [huggingface.co/new-space](https://huggingface.co/new-space)
+2. Choose **Docker** as the SDK
+3. Link your GitHub repo (or push directly to the HF Space repo)
+4. Rename `Dockerfile.spaces` → `Dockerfile` in the Space repo
+5. In the Space **Settings → Repository secrets**, add:
+   ```
+   OPENAI_API_KEY=sk-...
+   ```
+6. HF Spaces builds and deploys automatically
+
+Your app will be live at `https://huggingface.co/spaces/your-username/findociq`.
 
 ---
 
 ## API Endpoints
 
+All routes are prefixed with `/api`.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/documents/upload` | Upload and process a financial document |
-| `POST` | `/documents/query` | Ask a question about uploaded documents |
-| `GET`  | `/documents/{id}/metrics` | Extract structured financial metrics |
-| `GET`  | `/documents/{id}/risks` | Get scored risk factors |
-| `GET`  | `/documents/{id}/sentiment` | Per-section sentiment analysis |
-| `POST` | `/documents/compare` | Compare two documents side by side |
-| `GET`  | `/health` | Health check |
+| `GET`  | `/api/health` | Health check |
+| `POST` | `/api/documents/upload` | Upload and process a financial document |
+| `POST` | `/api/documents/query` | Ask a question about an uploaded document |
+| `GET`  | `/api/documents/{id}/metrics` | Extract structured financial metrics |
+| `GET`  | `/api/documents/{id}/risks` | Get scored risk factors |
+| `GET`  | `/api/documents/{id}/sentiment` | Per-section sentiment analysis |
+| `POST` | `/api/documents/compare` | Compare two documents side by side |
+
+Interactive docs available at `/api/docs` when running locally.
 
 ---
 
 ## Example Usage
 
-### Upload and query a 10-K
-
 ```python
 import httpx
 
-# Upload the document
+# Upload a document
 with open("apple_10k_2024.pdf", "rb") as f:
     response = httpx.post(
-        "http://localhost:8000/documents/upload",
+        "http://localhost:8000/api/documents/upload",
         files={"file": f}
     )
 doc_id = response.json()["document_id"]
 
 # Ask a question
 response = httpx.post(
-    "http://localhost:8000/documents/query",
+    "http://localhost:8000/api/documents/query",
     json={"document_id": doc_id, "question": "What were the main revenue drivers?"}
 )
 print(response.json()["answer"])
 
 # Get structured metrics
-metrics = httpx.get(f"http://localhost:8000/documents/{doc_id}/metrics")
+metrics = httpx.get(f"http://localhost:8000/api/documents/{doc_id}/metrics")
 print(metrics.json())
-# {
-#   "revenue": {"value": 383285, "unit": "million USD", "period": "FY2023"},
-#   "net_income": {"value": 96995, "unit": "million USD", "period": "FY2023"},
-#   "eps_diluted": {"value": 6.13, "unit": "USD"},
-#   "gross_margin": {"value": 0.441, "unit": "ratio"},
-#   ...
-# }
 ```
 
 ---
@@ -217,9 +259,9 @@ LangChain lets us focus on the domain-specific intelligence layer.
 
 ### Why ChromaDB for the vector store?
 
-ChromaDB runs locally with zero infrastructure — no server to manage, no API
-costs. It stores embeddings and metadata in a local directory. For a portfolio
-project, this is ideal: anyone can clone the repo and run it immediately.
+ChromaDB runs locally with zero infrastructure — no server to manage, no extra
+API costs. It stores embeddings and metadata in a local directory. Embeddings are
+generated via OpenAI's `text-embedding-3-small` model.
 
 ### Why section-aware splitting?
 
@@ -228,11 +270,12 @@ have semantic structure: Management Discussion & Analysis, Risk Factors, Financi
 Statements, Notes to Accounts. Splitting at these boundaries dramatically improves
 retrieval quality because the model retrieves coherent sections, not fragments.
 
-### Why two interfaces?
+### Why serve React from FastAPI in production?
 
-Streamlit is the fastest way to demo the system visually — great for portfolio
-presentations and interviews. FastAPI is what you'd actually ship in production.
-Having both shows you understand the difference between a demo and a system.
+In deployment (HF Spaces), running a separate nginx container alongside FastAPI
+requires a process manager or two services. FastAPI can serve the built React
+static files directly with a catch-all route — same origin, one container,
+zero nginx config.
 
 ---
 

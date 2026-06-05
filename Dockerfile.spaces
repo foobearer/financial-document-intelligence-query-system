@@ -1,0 +1,38 @@
+# Dockerfile.spaces — Single-container build for Hugging Face Spaces
+#
+# Builds the React frontend and serves it via FastAPI on port 7860.
+# To deploy: push this repo to a HF Space (Docker SDK) and set
+# OPENAI_API_KEY in the Space's secret settings.
+#
+# Usage:
+#   HF Spaces picks up this file automatically — rename to Dockerfile
+#   if your Space doesn't support a custom dockerfile path.
+
+# ── Stage 1: Build React frontend ─────────────────────────────────────────────
+FROM node:20-alpine AS frontend-build
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ .
+RUN npm run build
+
+# ── Stage 2: Python API + built frontend ──────────────────────────────────────
+FROM python:3.11-slim
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Copy the built React app so FastAPI can serve it
+COPY --from=frontend-build /app/frontend/dist ./frontend/dist
+
+RUN mkdir -p data/uploads data/chroma data/documents reports
+
+# HF Spaces exposes port 7860
+EXPOSE 7860
+
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "7860"]

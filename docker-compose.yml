@@ -1,13 +1,11 @@
 version: "3.9"
 services:
-  streamlit:
-    build: .
+  frontend:
+    build: ./frontend
     ports:
-      - "8501:8501"
-    volumes:
-      - ./data:/app/data
-    env_file: .env
-    command: streamlit run streamlit_app/app.py --server.port 8501 --server.address 0.0.0.0
+      - "8080:80"
+    depends_on:
+      - api
 
   api:
     build: .
