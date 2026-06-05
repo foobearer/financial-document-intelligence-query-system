@@ -54,13 +54,13 @@ Required JSON structure:
 }}
 
 Text to analyse:
-{text[:6000]}"""
+{text[:25000]}"""
 
 
 def risk_extraction_prompt(text: str) -> str:
     """Extract and score risk factors from a financial document."""
     return f"""You are a financial risk analyst. Extract risk factors from the text below
-and return ONLY a valid JSON array of risk objects.
+and return ONLY a valid JSON object with a single key "risks" containing an array.
 
 For each risk factor:
 - "title": short name (5 words max)
@@ -71,20 +71,22 @@ For each risk factor:
 - "likelihood": one of: low, medium, high (based on how the company frames it)
 - "is_new": boolean — true if this appears to be newly added vs a standard recurring risk
 
-Return as JSON array:
-[
-  {{
-    "title": "string",
-    "description": "string",
-    "category": "string",
-    "severity": integer_1_to_5,
-    "likelihood": "low|medium|high",
-    "is_new": boolean
-  }}
-]
+Return ONLY this JSON structure:
+{{
+  "risks": [
+    {{
+      "title": "string",
+      "description": "string",
+      "category": "string",
+      "severity": integer_1_to_5,
+      "likelihood": "low|medium|high",
+      "is_new": boolean
+    }}
+  ]
+}}
 
 Text to analyse:
-{text[:6000]}"""
+{text[:20000]}"""
 
 
 def sentiment_prompt(section_name: str, text: str) -> str:
