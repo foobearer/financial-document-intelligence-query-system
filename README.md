@@ -20,13 +20,14 @@ pinned: false
 
 ## What is FinDocIQ?
 
-Financial professionals spend hours manually reading SEC filings, earnings transcripts,
+_Financial professionals spend hours manually reading SEC filings, earnings transcripts,
 and analyst reports to extract key numbers, identify risks, and compare performance
-across periods. FinDocIQ automates all of that.
+across periods. FinDocIQ automates all of that._
 
-This is not just a RAG chatbot with a finance skin. It is a **domain-specific
-intelligence system** that understands the structure of financial documents and
-produces structured, actionable output.
+FinDocIQ is not a generic RAG chatbot wrapped around financial documents. It uses a hybrid architecture where a proprietary document intelligence engine performs local extraction, sectioning, chunking, and financial data structuring before leveraging cloud-based LLMs for reasoning and insight generation.
+
+By understanding the structure of SEC filings, earnings transcripts, and analyst reports, FinDocIQ converts hundreds of pages of financial disclosures into structured intelligence in under 60 seconds. Extract financial metrics, compare reporting periods, score risk factors, analyze management tone, and query documents through a single REST API.
+
 
 ---
 
@@ -69,6 +70,9 @@ FinDocIQ does all four in under 60 seconds.
 ---
 
 ## Architecture
+
+This architecture reduces token costs, improves reliability, and enables deep financial analysis at scale. A 200-page SEC filing can be transformed into structured, actionable intelligence in under 60 seconds, including financial metric extraction, risk factor scoring, management tone analysis, and natural-language question answering via a REST API.
+
 
 ```
 ┌─────────────────────────────────┐
